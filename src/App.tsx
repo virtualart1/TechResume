@@ -23,8 +23,6 @@ import {
 } from 'lucide-react';
 import { ResumeData, INITIAL_DATA, TechRole, Experience, Education, Project } from './types';
 import { cn } from './lib/utils';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 
 // --- Constants & Predefined Options ---
 const TECH_ROLES: TechRole[] = [
@@ -89,7 +87,6 @@ const StepIndicator = ({ currentStep }: { currentStep: number }) => {
 export default function App() {
   const [step, setStep] = useState(0);
   const [data, setData] = useState<ResumeData>(INITIAL_DATA);
-  const [isExporting, setIsExporting] = useState(false);
   const [mobileTab, setMobileTab] = useState<'edit' | 'preview'>('edit');
   const resumeRef = useRef<HTMLDivElement>(null);
   const previewContainerRef = useRef<HTMLDivElement>(null);
@@ -210,72 +207,14 @@ export default function App() {
     });
   };
 
-  const exportToPDF = async () => {
-    if (!resumeRef.current) return;
-    setIsExporting(true);
-    try {
-      const canvas = await html2canvas(resumeRef.current, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        onclone: (clonedDoc) => {
-          // Extract all styles from the original document and inject them into the cloned one
-          const style = clonedDoc.createElement('style');
-          let cssText = '';
-          Array.from(document.styleSheets).forEach(sheet => {
-            try {
-              const rules = sheet.cssRules || sheet.rules;
-              if (rules) {
-                Array.from(rules).forEach(rule => {
-                  cssText += rule.cssText;
-                });
-              }
-            } catch (e) {
-              // Ignore cross-origin stylesheet errors
-            }
-          });
-          style.appendChild(clonedDoc.createTextNode(cssText));
-          clonedDoc.head.appendChild(style);
-          
-          // Remove existing link tags to prevent 404s during html2canvas fetch
-          const links = clonedDoc.querySelectorAll('link[rel="stylesheet"]');
-          links.forEach(link => {
-            if (!link.href.includes('fonts.googleapis.com')) {
-              link.parentNode?.removeChild(link);
-            }
-          });
-        }
-      });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
-      heightLeft -= pageHeight;
-
-      while (heightLeft > 1) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-
-      pdf.save(`${data.personal.fullName.replace(/\s+/g, '_') || 'Resume'}.pdf`);
-    } catch (error) {
-      console.error('PDF Export failed:', error);
-    } finally {
-      setIsExporting(false);
-    }
+  const exportToPDF = () => {
+    window.print();
   };
 
   return (
-    <div className="min-h-screen bg-[#fafafa] flex flex-col lg:flex-row">
+    <div className="min-h-screen bg-[#fafafa] flex flex-col lg:flex-row print:bg-white">
       {/* Mobile Tabs */}
-      <div className="lg:hidden flex border-b border-gray-200 bg-white sticky top-0 z-20">
+      <div className="lg:hidden flex border-b border-gray-200 bg-white sticky top-0 z-20 print:hidden">
         <button 
           onClick={() => setMobileTab('edit')}
           className={cn(
@@ -297,7 +236,6 @@ export default function App() {
         {mobileTab === 'preview' && (
           <button 
             onClick={exportToPDF}
-            disabled={isExporting}
             className="px-4 py-4 text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 text-green-600 hover:text-green-700 transition-colors border-b-2 border-transparent"
           >
             <Download size={16} />
@@ -307,7 +245,7 @@ export default function App() {
 
       {/* Left Side: Wizard */}
       <div className={cn(
-        "w-full lg:w-1/2 p-4 sm:p-6 lg:p-12 overflow-y-auto max-h-[calc(100vh-56px)] lg:max-h-screen border-r border-gray-100",
+        "w-full lg:w-1/2 p-4 sm:p-6 lg:p-12 overflow-y-auto max-h-[calc(100vh-56px)] lg:max-h-screen border-r border-gray-100 print:hidden",
         mobileTab === 'preview' ? "hidden lg:block" : "block"
       )}>
         <div className="max-w-xl mx-auto">
@@ -661,10 +599,9 @@ export default function App() {
               {step === 4 ? (
                 <button 
                   onClick={exportToPDF}
-                  disabled={isExporting}
                   className="btn-primary flex items-center gap-2 bg-green-600 hover:bg-green-700"
                 >
-                  {isExporting ? 'Generating...' : <><Download size={20} /> Download PDF</>}
+                  <><Download size={20} /> Download PDF</>
                 </button>
               ) : (
                 <button 
@@ -684,13 +621,13 @@ export default function App() {
 
       {/* Right Side: Preview */}
       <div className={cn(
-        "w-full lg:w-1/2 bg-gray-100 p-4 sm:p-6 lg:p-12 overflow-y-auto max-h-[calc(100vh-56px)] lg:max-h-screen flex justify-center",
+        "w-full lg:w-1/2 bg-gray-100 p-4 sm:p-6 lg:p-12 overflow-y-auto max-h-[calc(100vh-56px)] lg:max-h-screen flex justify-center print:w-full print:bg-white print:p-0 print:m-0 print:block print:overflow-visible print:max-h-none",
         mobileTab === 'edit' ? "hidden lg:flex" : "flex"
       )}>
-        <div ref={previewContainerRef} className="w-full flex justify-center sticky top-4 lg:top-12 h-fit">
+        <div ref={previewContainerRef} className="w-full flex justify-center sticky top-4 lg:top-12 h-fit print:static print:block">
           {/* Scaled Wrapper */}
           <div 
-            className="shadow-2xl"
+            className="shadow-2xl print-wrapper"
             style={{ 
               transform: `scale(${previewScale})`, 
               transformOrigin: 'top center',
@@ -700,7 +637,7 @@ export default function App() {
           >
             <div 
               ref={resumeRef}
-              className="bg-white min-h-[1123px] p-12 text-[#1a1a1a] font-sans"
+              className="bg-white min-h-[1123px] p-12 text-[#1a1a1a] font-sans print:min-h-0"
             >
               {/* Header */}
             <header className="border-b-2 border-black pb-8 mb-8">
@@ -747,7 +684,7 @@ export default function App() {
                   <h3 className="text-xs font-black uppercase tracking-[0.2em] text-[#9ca3af] mb-4">Work Experience</h3>
                   <div className="space-y-6">
                     {data.experience.map((exp) => (
-                      <div key={exp.id}>
+                      <div key={exp.id} className="print:break-inside-avoid">
                         <div className="flex justify-between items-baseline mb-1">
                           <h4 className="font-bold text-lg">{exp.role}</h4>
                           <span className="text-sm font-bold text-[#6b7280]">{exp.startDate} — {exp.endDate}</span>
@@ -803,7 +740,7 @@ export default function App() {
                   <h3 className="text-xs font-black uppercase tracking-[0.2em] text-[#9ca3af] mb-4">Key Projects</h3>
                   <div className="space-y-4">
                     {data.projects.map((proj) => (
-                      <div key={proj.id}>
+                      <div key={proj.id} className="print:break-inside-avoid">
                         <div className="flex justify-between items-baseline mb-1">
                           <h4 className="font-bold text-[15px]">{proj.name}</h4>
                           <span className="text-[12px] font-mono text-[#6b7280]">{proj.technologies.join(' • ')}</span>
@@ -821,7 +758,7 @@ export default function App() {
                   <h3 className="text-xs font-black uppercase tracking-[0.2em] text-[#9ca3af] mb-4">Education</h3>
                   <div className="space-y-4">
                     {data.education.map((edu) => (
-                      <div key={edu.id} className="flex justify-between items-start">
+                      <div key={edu.id} className="flex justify-between items-start print:break-inside-avoid">
                         <div>
                           <h4 className="font-bold text-[15px]">{edu.school}</h4>
                           <div className="text-[14px] text-[#4b5563]">{edu.degree} in {edu.field}</div>
