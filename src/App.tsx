@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   User, 
@@ -17,7 +17,9 @@ import {
   Mail,
   Phone,
   MapPin,
-  CheckCircle2
+  CheckCircle2,
+  Eye,
+  Edit3
 } from 'lucide-react';
 import { ResumeData, INITIAL_DATA, TechRole, Experience, Education, Project } from './types';
 import { cn } from './lib/utils';
@@ -67,13 +69,13 @@ const StepIndicator = ({ currentStep }: { currentStep: number }) => {
                 {isCompleted ? <CheckCircle2 size={20} /> : <Icon size={20} />}
               </div>
               <span className={cn(
-                "text-[10px] uppercase tracking-wider font-semibold",
+                "hidden sm:block text-[10px] uppercase tracking-wider font-semibold",
                 isActive ? "text-black" : "text-gray-400"
               )}>{step.label}</span>
             </div>
             {idx < steps.length - 1 && (
               <div className={cn(
-                "h-[2px] flex-1 mx-4 transition-all duration-500",
+                "h-[2px] flex-1 mx-2 sm:mx-4 transition-all duration-500",
                 isCompleted ? "bg-green-500" : "bg-gray-100"
               )} />
             )}
@@ -88,7 +90,36 @@ export default function App() {
   const [step, setStep] = useState(0);
   const [data, setData] = useState<ResumeData>(INITIAL_DATA);
   const [isExporting, setIsExporting] = useState(false);
+  const [mobileTab, setMobileTab] = useState<'edit' | 'preview'>('edit');
   const resumeRef = useRef<HTMLDivElement>(null);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const [previewScale, setPreviewScale] = useState(1);
+
+  // Handle responsive scaling for the A4 preview
+  useEffect(() => {
+    const updateScale = () => {
+      if (previewContainerRef.current) {
+        const containerWidth = previewContainerRef.current.offsetWidth;
+        const targetWidth = 794; // A4 width in px (210mm at 96dpi)
+        const padding = 32; // 16px padding on each side
+        const availableWidth = containerWidth - padding;
+        
+        if (availableWidth < targetWidth) {
+          setPreviewScale(availableWidth / targetWidth);
+        } else {
+          setPreviewScale(1);
+        }
+      }
+    };
+
+    const observer = new ResizeObserver(updateScale);
+    if (previewContainerRef.current) {
+      observer.observe(previewContainerRef.current);
+    }
+    
+    updateScale();
+    return () => observer.disconnect();
+  }, [mobileTab]);
 
   const nextStep = () => setStep(s => Math.min(s + 1, 4));
   const prevStep = () => setStep(s => Math.max(s - 1, 0));
@@ -114,7 +145,7 @@ export default function App() {
     setData(prev => ({ ...prev, experience: [...prev.experience, newExp] }));
   };
 
-  const updateExperience = (id: string, field: keyof Experience, value: any) => {
+  const updateExperience = (id: string, field: keyof Experience, value: string | boolean | string[]) => {
     setData(prev => ({
       ...prev,
       experience: prev.experience.map(exp => exp.id === id ? { ...exp, [field]: value } : exp)
@@ -137,7 +168,7 @@ export default function App() {
     setData(prev => ({ ...prev, education: [...prev.education, newEdu] }));
   };
 
-  const updateEducation = (id: string, field: keyof Education, value: any) => {
+  const updateEducation = (id: string, field: keyof Education, value: string) => {
     setData(prev => ({
       ...prev,
       education: prev.education.map(edu => edu.id === id ? { ...edu, [field]: value } : edu)
@@ -158,7 +189,7 @@ export default function App() {
     setData(prev => ({ ...prev, projects: [...prev.projects, newProj] }));
   };
 
-  const updateProject = (id: string, field: keyof Project, value: any) => {
+  const updateProject = (id: string, field: keyof Project, value: string | string[]) => {
     setData(prev => ({
       ...prev,
       projects: prev.projects.map(p => p.id === id ? { ...p, [field]: value } : p)
@@ -187,13 +218,17 @@ export default function App() {
         scale: 2,
         useCORS: true,
         logging: false,
+        onclone: (document, element) => {
+          // Remove box-shadow during export to ensure clean PDF
+          element.style.boxShadow = 'none';
+        }
       });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`${data.personal.fullName.replace(/\s+/g, '_')}_Resume.pdf`);
+      pdf.save(`${data.personal.fullName.replace(/\s+/g, '_') || 'Resume'}.pdf`);
     } catch (error) {
       console.error('PDF Export failed:', error);
     } finally {
@@ -203,10 +238,44 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#fafafa] flex flex-col lg:flex-row">
+      {/* Mobile Tabs */}
+      <div className="lg:hidden flex border-b border-gray-200 bg-white sticky top-0 z-20">
+        <button 
+          onClick={() => setMobileTab('edit')}
+          className={cn(
+            "flex-1 py-4 text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors",
+            mobileTab === 'edit' ? "text-black border-b-2 border-black" : "text-gray-400 hover:text-gray-600"
+          )}
+        >
+          <Edit3 size={16} /> Edit
+        </button>
+        <button 
+          onClick={() => setMobileTab('preview')}
+          className={cn(
+            "flex-1 py-4 text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors",
+            mobileTab === 'preview' ? "text-black border-b-2 border-black" : "text-gray-400 hover:text-gray-600"
+          )}
+        >
+          <Eye size={16} /> Preview
+        </button>
+        {mobileTab === 'preview' && (
+          <button 
+            onClick={exportToPDF}
+            disabled={isExporting}
+            className="px-4 py-4 text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 text-green-600 hover:text-green-700 transition-colors border-b-2 border-transparent"
+          >
+            <Download size={16} />
+          </button>
+        )}
+      </div>
+
       {/* Left Side: Wizard */}
-      <div className="w-full lg:w-1/2 p-6 lg:p-12 overflow-y-auto max-h-screen border-r border-gray-100">
+      <div className={cn(
+        "w-full lg:w-1/2 p-4 sm:p-6 lg:p-12 overflow-y-auto max-h-[calc(100vh-56px)] lg:max-h-screen border-r border-gray-100",
+        mobileTab === 'preview' ? "hidden lg:block" : "block"
+      )}>
         <div className="max-w-xl mx-auto">
-          <header className="mb-12">
+          <header className="mb-8 lg:mb-12">
             <h1 className="text-3xl font-bold tracking-tight mb-2">TechResume Pro</h1>
             <p className="text-gray-500">Create a high-impact resume for your next tech role.</p>
           </header>
@@ -225,13 +294,13 @@ export default function App() {
               {/* Step 0: Personal Info */}
               {step === 0 && (
                 <div className="space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-xs font-bold uppercase text-gray-500">Full Name</label>
                       <input 
                         type="text" 
                         className="input-field" 
-                        placeholder="John Doe"
+                        placeholder="Aarav Patel"
                         value={data.personal.fullName}
                         onChange={e => updatePersonal('fullName', e.target.value)}
                       />
@@ -249,13 +318,13 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-xs font-bold uppercase text-gray-500">Email</label>
                       <input 
                         type="email" 
                         className="input-field" 
-                        placeholder="john@example.com"
+                        placeholder="aarav@example.com"
                         value={data.personal.email}
                         onChange={e => updatePersonal('email', e.target.value)}
                       />
@@ -265,7 +334,7 @@ export default function App() {
                       <input 
                         type="tel" 
                         className="input-field" 
-                        placeholder="+1 234 567 890"
+                        placeholder="+91 98765 43210"
                         value={data.personal.phone}
                         onChange={e => updatePersonal('phone', e.target.value)}
                       />
@@ -277,13 +346,13 @@ export default function App() {
                     <input 
                       type="text" 
                       className="input-field" 
-                      placeholder="San Francisco, CA"
+                      placeholder="Bengaluru, Karnataka"
                       value={data.personal.location}
                       onChange={e => updatePersonal('location', e.target.value)}
                     />
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <label className="text-xs font-bold uppercase text-gray-500">GitHub</label>
                       <input 
@@ -339,7 +408,7 @@ export default function App() {
                       >
                         <Trash2 size={18} />
                       </button>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="text-xs font-bold uppercase text-gray-500">Company</label>
                           <input 
@@ -417,13 +486,13 @@ export default function App() {
                           onChange={e => updateEducation(edu.id, 'school', e.target.value)}
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="text-xs font-bold uppercase text-gray-500">Degree</label>
                           <input 
                             type="text" 
                             className="input-field" 
-                            placeholder="B.S., M.S., etc."
+                            placeholder="B.Tech, M.Tech, etc."
                             value={edu.degree}
                             onChange={e => updateEducation(edu.id, 'degree', e.target.value)}
                           />
@@ -544,43 +613,59 @@ export default function App() {
             </motion.div>
           </AnimatePresence>
 
-          <footer className="mt-12 pt-8 border-t border-gray-100 flex items-center justify-between">
-            <button 
-              onClick={prevStep}
-              disabled={step === 0}
-              className="btn-secondary flex items-center gap-2"
-            >
-              <ChevronLeft size={20} /> Previous
-            </button>
-            {step === 4 ? (
+          <footer className="mt-12 pt-8 border-t border-gray-100 flex flex-col gap-6">
+            <div className="flex items-center justify-between">
               <button 
-                onClick={exportToPDF}
-                disabled={isExporting}
-                className="btn-primary flex items-center gap-2 bg-green-600 hover:bg-green-700"
+                onClick={prevStep}
+                disabled={step === 0}
+                className="btn-secondary flex items-center gap-2"
               >
-                {isExporting ? 'Generating...' : <><Download size={20} /> Download PDF</>}
+                <ChevronLeft size={20} /> Previous
               </button>
-            ) : (
-              <button 
-                onClick={nextStep}
-                className="btn-primary flex items-center gap-2"
-              >
-                Next <ChevronRight size={20} />
-              </button>
-            )}
+              {step === 4 ? (
+                <button 
+                  onClick={exportToPDF}
+                  disabled={isExporting}
+                  className="btn-primary flex items-center gap-2 bg-green-600 hover:bg-green-700"
+                >
+                  {isExporting ? 'Generating...' : <><Download size={20} /> Download PDF</>}
+                </button>
+              ) : (
+                <button 
+                  onClick={nextStep}
+                  className="btn-primary flex items-center gap-2"
+                >
+                  Next <ChevronRight size={20} />
+                </button>
+              )}
+            </div>
+            <div className="text-center text-sm text-gray-500">
+              Created by <a href="https://surajmishra.site" target="_blank" rel="noopener noreferrer" className="text-black hover:underline font-medium">Suraj Mishra</a>
+            </div>
           </footer>
         </div>
       </div>
 
       {/* Right Side: Preview */}
-      <div className="w-full lg:w-1/2 bg-gray-100 p-6 lg:p-12 overflow-y-auto flex justify-center">
-        <div className="w-full max-w-[210mm] sticky top-12">
+      <div className={cn(
+        "w-full lg:w-1/2 bg-gray-100 p-4 sm:p-6 lg:p-12 overflow-y-auto max-h-[calc(100vh-56px)] lg:max-h-screen flex justify-center",
+        mobileTab === 'edit' ? "hidden lg:flex" : "flex"
+      )}>
+        <div ref={previewContainerRef} className="w-full flex justify-center sticky top-4 lg:top-12 h-fit">
+          {/* Scaled Wrapper */}
           <div 
-            ref={resumeRef}
-            className="bg-white shadow-2xl min-h-[297mm] p-12 text-[#1a1a1a] font-sans"
-            style={{ width: '210mm' }}
+            style={{ 
+              transform: `scale(${previewScale})`, 
+              transformOrigin: 'top center',
+              width: '794px',
+              marginBottom: `-${1123 * (1 - previewScale)}px` // Prevent extra scroll space
+            }}
           >
-            {/* Header */}
+            <div 
+              ref={resumeRef}
+              className="bg-white shadow-2xl min-h-[1123px] p-12 text-[#1a1a1a] font-sans"
+            >
+              {/* Header */}
             <header className="border-b-2 border-black pb-8 mb-8">
               <h2 className="text-4xl font-black uppercase tracking-tighter mb-2">
                 {data.personal.fullName || 'Your Name'}
@@ -714,6 +799,7 @@ export default function App() {
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }
