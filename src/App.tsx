@@ -217,7 +217,34 @@ export default function App() {
       const canvas = await html2canvas(resumeRef.current, {
         scale: 2,
         useCORS: true,
-        logging: false
+        logging: false,
+        onclone: (clonedDoc) => {
+          // Extract all styles from the original document and inject them into the cloned one
+          const style = clonedDoc.createElement('style');
+          let cssText = '';
+          Array.from(document.styleSheets).forEach(sheet => {
+            try {
+              const rules = sheet.cssRules || sheet.rules;
+              if (rules) {
+                Array.from(rules).forEach(rule => {
+                  cssText += rule.cssText;
+                });
+              }
+            } catch (e) {
+              // Ignore cross-origin stylesheet errors
+            }
+          });
+          style.appendChild(clonedDoc.createTextNode(cssText));
+          clonedDoc.head.appendChild(style);
+          
+          // Remove existing link tags to prevent 404s during html2canvas fetch
+          const links = clonedDoc.querySelectorAll('link[rel="stylesheet"]');
+          links.forEach(link => {
+            if (!link.href.includes('fonts.googleapis.com')) {
+              link.parentNode?.removeChild(link);
+            }
+          });
+        }
       });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
