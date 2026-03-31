@@ -217,17 +217,26 @@ export default function App() {
       const canvas = await html2canvas(resumeRef.current, {
         scale: 2,
         useCORS: true,
-        logging: false,
-        onclone: (document, element) => {
-          // Remove box-shadow during export to ensure clean PDF
-          element.style.boxShadow = 'none';
-        }
+        logging: false
       });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 1) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
       pdf.save(`${data.personal.fullName.replace(/\s+/g, '_') || 'Resume'}.pdf`);
     } catch (error) {
       console.error('PDF Export failed:', error);
@@ -654,6 +663,7 @@ export default function App() {
         <div ref={previewContainerRef} className="w-full flex justify-center sticky top-4 lg:top-12 h-fit">
           {/* Scaled Wrapper */}
           <div 
+            className="shadow-2xl"
             style={{ 
               transform: `scale(${previewScale})`, 
               transformOrigin: 'top center',
@@ -663,14 +673,14 @@ export default function App() {
           >
             <div 
               ref={resumeRef}
-              className="bg-white shadow-2xl min-h-[1123px] p-12 text-[#1a1a1a] font-sans"
+              className="bg-white min-h-[1123px] p-12 text-[#1a1a1a] font-sans"
             >
               {/* Header */}
             <header className="border-b-2 border-black pb-8 mb-8">
               <h2 className="text-4xl font-black uppercase tracking-tighter mb-2">
                 {data.personal.fullName || 'Your Name'}
               </h2>
-              <p className="text-xl font-medium text-gray-600 mb-6">
+              <p className="text-xl font-medium text-[#4b5563] mb-6">
                 {data.personal.role || 'Target Role'}
               </p>
               <div className="flex flex-wrap gap-y-2 gap-x-6 text-sm font-medium">
@@ -699,26 +709,26 @@ export default function App() {
               {/* Summary */}
               {data.personal.summary && (
                 <section>
-                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400 mb-3">Professional Summary</h3>
-                  <p className="text-[15px] leading-relaxed text-gray-800">{data.personal.summary}</p>
+                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-[#9ca3af] mb-3">Professional Summary</h3>
+                  <p className="text-[15px] leading-relaxed text-[#1f2937]">{data.personal.summary}</p>
                 </section>
               )}
 
               {/* Experience */}
               {data.experience.length > 0 && (
                 <section>
-                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400 mb-4">Work Experience</h3>
+                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-[#9ca3af] mb-4">Work Experience</h3>
                   <div className="space-y-6">
                     {data.experience.map((exp) => (
                       <div key={exp.id}>
                         <div className="flex justify-between items-baseline mb-1">
                           <h4 className="font-bold text-lg">{exp.role}</h4>
-                          <span className="text-sm font-bold text-gray-500">{exp.startDate} — {exp.endDate}</span>
+                          <span className="text-sm font-bold text-[#6b7280]">{exp.startDate} — {exp.endDate}</span>
                         </div>
-                        <div className="text-sm font-bold text-gray-600 mb-3">{exp.company}</div>
+                        <div className="text-sm font-bold text-[#4b5563] mb-3">{exp.company}</div>
                         <ul className="list-disc list-outside ml-4 space-y-1.5">
                           {exp.description.map((bullet, i) => bullet && (
-                            <li key={i} className="text-[14px] text-gray-700 leading-snug">{bullet}</li>
+                            <li key={i} className="text-[14px] text-[#374151] leading-snug">{bullet}</li>
                           ))}
                         </ul>
                       </div>
@@ -730,29 +740,29 @@ export default function App() {
               {/* Skills */}
               {(data.skills.languages.length > 0 || data.skills.frameworks.length > 0 || data.skills.tools.length > 0) && (
                 <section>
-                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400 mb-4">Technical Skills</h3>
+                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-[#9ca3af] mb-4">Technical Skills</h3>
                   <div className="grid grid-cols-2 gap-x-12 gap-y-4">
                     {data.skills.languages.length > 0 && (
                       <div>
-                        <span className="text-[11px] font-black uppercase text-gray-400 block mb-1">Languages</span>
+                        <span className="text-[11px] font-black uppercase text-[#9ca3af] block mb-1">Languages</span>
                         <p className="text-[14px] font-medium">{data.skills.languages.join(', ')}</p>
                       </div>
                     )}
                     {data.skills.frameworks.length > 0 && (
                       <div>
-                        <span className="text-[11px] font-black uppercase text-gray-400 block mb-1">Frameworks</span>
+                        <span className="text-[11px] font-black uppercase text-[#9ca3af] block mb-1">Frameworks</span>
                         <p className="text-[14px] font-medium">{data.skills.frameworks.join(', ')}</p>
                       </div>
                     )}
                     {data.skills.tools.length > 0 && (
                       <div>
-                        <span className="text-[11px] font-black uppercase text-gray-400 block mb-1">Tools & Cloud</span>
+                        <span className="text-[11px] font-black uppercase text-[#9ca3af] block mb-1">Tools & Cloud</span>
                         <p className="text-[14px] font-medium">{data.skills.tools.join(', ')}</p>
                       </div>
                     )}
                     {data.skills.databases.length > 0 && (
                       <div>
-                        <span className="text-[11px] font-black uppercase text-gray-400 block mb-1">Databases</span>
+                        <span className="text-[11px] font-black uppercase text-[#9ca3af] block mb-1">Databases</span>
                         <p className="text-[14px] font-medium">{data.skills.databases.join(', ')}</p>
                       </div>
                     )}
@@ -763,15 +773,15 @@ export default function App() {
               {/* Projects */}
               {data.projects.length > 0 && (
                 <section>
-                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400 mb-4">Key Projects</h3>
+                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-[#9ca3af] mb-4">Key Projects</h3>
                   <div className="space-y-4">
                     {data.projects.map((proj) => (
                       <div key={proj.id}>
                         <div className="flex justify-between items-baseline mb-1">
                           <h4 className="font-bold text-[15px]">{proj.name}</h4>
-                          <span className="text-[12px] font-mono text-gray-500">{proj.technologies.join(' • ')}</span>
+                          <span className="text-[12px] font-mono text-[#6b7280]">{proj.technologies.join(' • ')}</span>
                         </div>
-                        <p className="text-[14px] text-gray-700 leading-snug">{proj.description}</p>
+                        <p className="text-[14px] text-[#374151] leading-snug">{proj.description}</p>
                       </div>
                     ))}
                   </div>
@@ -781,15 +791,15 @@ export default function App() {
               {/* Education */}
               {data.education.length > 0 && (
                 <section>
-                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400 mb-4">Education</h3>
+                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-[#9ca3af] mb-4">Education</h3>
                   <div className="space-y-4">
                     {data.education.map((edu) => (
                       <div key={edu.id} className="flex justify-between items-start">
                         <div>
                           <h4 className="font-bold text-[15px]">{edu.school}</h4>
-                          <div className="text-[14px] text-gray-600">{edu.degree} in {edu.field}</div>
+                          <div className="text-[14px] text-[#4b5563]">{edu.degree} in {edu.field}</div>
                         </div>
-                        <span className="text-[12px] font-bold text-gray-500">{edu.startDate} — {edu.endDate}</span>
+                        <span className="text-[12px] font-bold text-[#6b7280]">{edu.startDate} — {edu.endDate}</span>
                       </div>
                     ))}
                   </div>
